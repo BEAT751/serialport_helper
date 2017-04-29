@@ -8,14 +8,22 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
 
 namespace 串口助手
 {
     public partial class Form1 : Form
     {
+        //Socket client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         private StringBuilder builder = new StringBuilder();//避免在事件处理方法中反复的创建，定义到外面。
-        public Form1()
+                                    //StringBuilder对象是动态对象，在需要对字符串执行重复修改的情况下
+        Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp); 
+        public int isclose;                         
+        public Form1()                                      
         {
+            CheckForIllegalCrossThreadCalls = false;
             InitializeComponent();
         }
 
@@ -74,7 +82,7 @@ namespace 串口助手
 
         }
 
-        private void boxenter()
+        private void boxenter()//将数据添加到下拉列表
         {
 
             string str, str1;
@@ -112,6 +120,9 @@ namespace 串口助手
         private void Form1_Load(object sender, EventArgs e)
         {
             boxenter();
+            comboBox1.SelectedText = "COM3";
+            comboBox2.SelectedText = "115200";
+            isclose = 1;
         }
         private void serialPort1_DataReceived(object sender, EventArgs e)
         {
@@ -144,8 +155,32 @@ namespace 串口助手
                     }
                     //追加的形式添加到文本框末端，并滚动到最后。
                     //textBox2.AppendText(System.DateTime.Now.ToString() + ": " + builder.ToString() +  "\n") ;
-                    textBox1.AppendText(count.ToString() + "个字符: " + builder.ToString() + "\n");
+                    socketsend(data);
+                    textBox1.AppendText("s" + count.ToString() + "个字符: " + builder.ToString() + "\n");
                 }));
+            }
+        }
+        void socketsend(byte[] data) 
+        {                // 判断是否连接
+            if (checksocket(socket))
+            {
+                if (checkBox1.Checked)
+                {
+                    //客户端给服务器发消息
+                    if (isclose != 1)
+                    {
+                        try
+                        {
+//                            byte[] buffer = Encoding.UTF8.GetBytes(textBox2.Text);
+                            socket.Send(data);
+                            ShowMsg(builder.ToString());
+                        }
+                        catch (Exception ex)
+                        {
+                            ShowMsg(ex.Message);
+                        }
+                    }
+                }
             }
         }
 
@@ -201,7 +236,21 @@ namespace 串口助手
                 button2.Text = "打开串口";
                 serialPort1.Close();
             }
-            serialPort1.DataReceived += new SerialDataReceivedEventHandler(serialPort1_DataReceived);
+            serialPort1.DataReceived += new SerialDataReceivedEventHandler(serialPort1_DataReceived);//订阅委托
+        }
+
+        void serialwrite()
+        {
+            if (radioButton3.Checked)//ASCII码直接发送
+            {
+                string serialStringTemp = this.textBox2.Text;
+                this.serialPort1.WriteLine(serialStringTemp);
+            }
+            else if (radioButton4.Checked)
+            {
+                byte[] BSendTemp = System.Text.Encoding.UTF8.GetBytes(textBox2.Text); //string转字节存入数组
+                serialPort1.Write(BSendTemp, 0, BSendTemp.Length);//发送数据    
+            }
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -211,20 +260,160 @@ namespace 串口助手
                 MessageBox.Show("发送数据为空！");
                 return;
             }
-            if (radioButton3.Checked)//ASCII码直接发送
-            {
-                string serialStringTemp = this.textBox2.Text;
-                this.serialPort1.WriteLine(serialStringTemp);
-            }
-            else if (radioButton4.Checked)
-            {
-                byte[] BSendTemp = System.Text.Encoding.Default.GetBytes(textBox2.Text); //string转字节存入数组
-                serialPort1.Write(BSendTemp, 0, BSendTemp.Length);//发送数据    
-            }
-
+            serialwrite();
         }
 
         private void radioButton4_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label9_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            if (isclose==1)//如果没连接
+//          if (!client.Connected)//如果没连接
+            {
+                Socket client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                //连接到的目标IP
+                IPAddress ip = IPAddress.Parse(textBox3.Text);
+                //IPAddress ip = IPAddress.Any;
+                //连接到目标IP的哪个应用(端口号！)
+                IPEndPoint point = new IPEndPoint(ip, int.Parse(textBox4.Text));
+                try
+                {
+                    if (!client.Connected)//如果之前没连接
+                    {
+                        client.Connect(point);//连接到服务器
+                        ShowMsg("连接成功");
+                        ShowMsg("服务器" + client.RemoteEndPoint.ToString());
+                        ShowMsg("客户端:" + client.LocalEndPoint.ToString());
+                        //连接成功后，就可以接收服务器发送的信息了
+                        socketreceive(client);
+                        isclose = 0;
+                        socket = client;
+                        //byte[] buffer = new byte[1024 * 1024];
+                        //int n = client.Receive(buffer);
+                        //serialPort1.Write(buffer, 0, n);//发送数据 
+                    }
+                    else if (client.Connected)//如果之前已连接
+                    {
+                        client.Connect(point);//连接到服务器
+                    }
+                        
+                }
+                catch (Exception ex)
+                {
+                    ShowMsg(ex.Message);
+                } 
+                button3.Text = "关闭web";
+            }
+            else
+            {//判断Socket是否存在且连接正常，存在且连接正常的Socket才运行进行断开操作   
+                if (socket != null && socket.Connected)
+                {
+                    socket.Shutdown(SocketShutdown.Both);
+                    Thread.Sleep(10);
+                    socket.Close();
+//                    client.Dispose();
+//                    client = null;
+                    button3.Text = "连接web";
+                    isclose = 1;
+                }
+            }
+        }
+        void socketreceive(Socket client)
+        {
+            if (checkBox2.Checked)
+            {
+                try
+                {
+                    Thread th = new Thread(new ThreadStart(()=>ThreadMethod(client)));
+                    // Thread th = new Thread(ReceiveMsg);
+                   // Thread th = new Thread(ThreadMethod);
+                    th.IsBackground = true;
+                    th.Start();
+                }
+                catch (Exception ex)
+                {
+                    ShowMsg(ex.Message);
+                }
+            }
+        }
+        
+        /// <summary>  
+        /// 多线程执行指定方法  
+        /// </summary>  
+        //private void ThreadMethod( client)
+        private void ThreadMethod(Socket client)
+        {
+            while (true)
+            {
+                Thread.Sleep(100);  //线程暂停100毫秒  
+                ReceivesocketMsg(client);
+                if (!checksocket(client))
+                {
+                    break;
+                }
+            }
+            Thread.CurrentThread.Abort();
+        }
+
+        Boolean checksocket(Socket client)//判断socket连接后是否断开，不可判断第一次
+        {
+            byte[] data= new byte[1];
+            try
+            {
+                if (client.Poll(1, SelectMode.SelectRead))//Poll 将在指定的时段（以 microseconds 为单位）内阻止执行。
+                                                          //如果希望无限期的等待响应，则将 microSeconds 设置为一个负整数。
+                {
+                    int nRead = client.Receive(data);
+                    if (nRead == 0)
+                    {
+                        //socket连接已断开
+                        return false;
+                    }
+                    else return true;
+                }
+                else return true;
+                //return !client.Poll(1, SelectMode.SelectRead) && (client.Available == 0);
+            }
+            catch (Exception)
+            { return false; }
+        }
+    //接收服务器的消息
+
+    void ReceivesocketMsg(Socket client)
+        {
+            try
+            {
+                byte[] buffer = new byte[1024 * 1024];
+                int n = client.Receive(buffer);
+//                 string s = Encoding.UTF8.GetString(buffer, 0, n);
+//                  ShowMsg(client.RemoteEndPoint.ToString() + ":" + s);
+                serialPort1.Write(buffer, 0, n);//发送数据  
+            }
+            catch (Exception ex)
+            {
+                ShowMsg(ex.Message);
+            }
+        }
+
+        void ShowMsg(string msg)
+        {
+            textBox1.AppendText("w" + msg + "\n");
+        }
+
+        private void textBox3_TextChanged(object sender, EventArgs e)
         {
 
         }
