@@ -218,7 +218,7 @@ namespace 串口助手
             }
             else if (radioButton4.Checked)
             {
-                byte[] BSendTemp = System.Text.Encoding.Default.GetBytes(textBox2.Text); //string转字节存入数组
+                byte[] BSendTemp = System.Text.Encoding.UTF8.GetBytes(textBox2.Text); //string转字节存入数组
                 serialPort1.Write(BSendTemp, 0, BSendTemp.Length);//发送数据    
             }
 
