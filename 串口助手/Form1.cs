@@ -241,16 +241,24 @@ namespace 串口助手
 
         void serialwrite()
         {
-            if (radioButton3.Checked)//ASCII码直接发送
+            if (serialPort1.IsOpen)
             {
-                string serialStringTemp = this.textBox2.Text;
-                this.serialPort1.WriteLine(serialStringTemp);
+                if (radioButton3.Checked)//ASCII码直接发送
+                {
+                    string serialStringTemp = this.textBox2.Text;
+                    this.serialPort1.WriteLine(serialStringTemp);
+                }
+                else if (radioButton4.Checked)
+                {
+                    byte[] BSendTemp = System.Text.Encoding.UTF8.GetBytes(textBox2.Text); //string转字节存入数组
+                    serialPort1.Write(BSendTemp, 0, BSendTemp.Length);//发送数据  
+                }
             }
-            else if (radioButton4.Checked)
+            else
             {
                 byte[] BSendTemp = System.Text.Encoding.UTF8.GetBytes(textBox2.Text); //string转字节存入数组
-                serialPort1.Write(BSendTemp, 0, BSendTemp.Length);//发送数据    
-            }
+                socketsend(BSendTemp);  
+            } 
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -309,13 +317,12 @@ namespace 串口助手
                     {
                         client.Connect(point);//连接到服务器
                     }
-                        
+                    button3.Text = "关闭web";
                 }
                 catch (Exception ex)
                 {
                     ShowMsg(ex.Message);
                 } 
-                button3.Text = "关闭web";
             }
             else
             {//判断Socket是否存在且连接正常，存在且连接正常的Socket才运行进行断开操作   
